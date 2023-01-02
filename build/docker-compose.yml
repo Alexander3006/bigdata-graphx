@@ -1,0 +1,74 @@
+version: '3.5'
+
+services:
+  neo4j:
+    image: neo4j
+    container_name: bigdata_neo4j
+    restart: unless-stopped
+    ports:
+      - 7474:7474
+      - 7687:7687
+    volumes:
+      - ./.storage/neo4j/conf:/conf
+      - ./.storage/neo4j/data:/data
+      - ./.storage/neo4j/import:/import
+      - ./.storage/neo4j/logs:/logs
+      - ./.storage/neo4j/plugins:/plugins
+    environment: 
+      - NEO4J_dbms_memory_pagecache_size=1G
+      - NEO4J_dbms.memory.heap.initial_size=1G
+      - NEO4J_dbms_memory_heap_max__size=1G
+      - NEO4J_AUTH=none
+    networks:
+      - bigdata-network
+
+  spark-master:
+    image: docker.io/bitnami/spark:3.3
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - '8080:8080'
+      - '7077:7077'
+    networks:
+      - bigdata-network
+
+  spark-worker:
+    image: docker.io/bitnami/spark:3.3
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    depends_on:
+      - spark-master
+    networks:
+      - bigdata-network
+
+  jupyter: 
+    build: ./jupyter
+    user: root
+    working_dir: /home/alex
+    volumes:
+     - ./.storage/jupyterlab/notebooks/:/home/alex
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=999
+      - JUPYTER_TOKEN=token
+      - NB_USER=alex
+      - CHOWN_HOME=yes
+      - CHOWN_EXTRA_OPTS='-R'
+    command: /opt/conda/bin/jupyter-lab --allow-root
+    networks:
+      - bigdata-network
+
+networks:
+  bigdata-network:
